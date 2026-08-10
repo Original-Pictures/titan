@@ -25,7 +25,7 @@ const CUSTOM_ICON = {
   url:
     "data:image/svg+xml," +
     encodeURIComponent(
-      "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256' fill='none' stroke='currentColor' stroke-width='20'><path d='M52 72h152v112H52z'/><path d='m52 88 76 52 76-52'/></svg>",
+      "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256' fill='none'><circle cx='128' cy='128' r='98' fill='%23001F3F'/><circle cx='128' cy='128' r='76' stroke='%23B8860B' stroke-width='12'/><path d='M83 82h90v20h-35v78h-20v-78H83z' fill='%23FFFFFF'/></svg>"
     ),
 };
 
@@ -34,13 +34,13 @@ type ObservationQueue = Pick<ApprovalQueue, "authorizeObservation"> &
 
 export function describeCustomVendor(): VendorDescription {
   return {
-    displayName: "Custom Gatekeeper",
-    url: "https://github.com/cloudflare/cloudflare-os-starter",
+    displayName: "Titan - Original Pictures",
+    url: "https://originalpictures.com",
     logo: CUSTOM_ICON,
-    color: "#e8f2ff",
-    tagline: "Example organization-specific capability",
+    color: "#001F3F",
+    tagline: "The record behind content",
     description:
-      "A minimal Gatekeeper to copy when connecting CloudflareOS to your organization's systems.",
+      "Original Pictures' content-authenticity capability for Titan. It provides trusted deployment guidance for provenance, AI disclosure, and independent verification.",
     autoProvisionsAccount: true,
     providesAuth: false,
   };
@@ -48,7 +48,7 @@ export function describeCustomVendor(): VendorDescription {
 
 export function describeCustomAccount(): AccountDescription {
   return {
-    displayName: "Custom Gatekeeper",
+    displayName: "Titan - Original Pictures",
     avatar: CUSTOM_ICON,
     singleton: { tsType: "CustomSession" },
   };
@@ -79,13 +79,17 @@ export class CustomSessionImpl extends RpcTarget implements CustomSession {
 }
 
 @validateRpc()
-export class CustomGatekeeper extends DurableObject<Cloudflare.Env> implements Gatekeeper<CustomSession> {
+export class CustomGatekeeper
+  extends DurableObject<Cloudflare.Env>
+  implements Gatekeeper<CustomSession>
+{
   async describe(): Promise<ResourceDescription> {
     return {
       url: "custom://deployment-info",
-      title: "Deployment information",
-      snippet: "Organization-specific information supplied by this deployment.",
-      suggestedBindingName: "CUSTOM",
+      title: "Titan authenticity information",
+      snippet:
+        "Original Pictures content-authenticity information supplied by this Titan deployment.",
+      suggestedBindingName: "TITAN",
       tsType: "CustomSession",
     };
   }
@@ -98,14 +102,19 @@ export class CustomGatekeeper extends DurableObject<Cloudflare.Env> implements G
     return [];
   }
 
-  async startSession(approvalQueue: RpcStub<ApprovalQueue>): Promise<CustomSession> {
+  async startSession(
+    approvalQueue: RpcStub<ApprovalQueue>
+  ): Promise<CustomSession> {
     return new CustomSessionImpl(approvalQueue.dup(), {
       name: this.env.CUSTOM_NAME,
       message: this.env.CUSTOM_MESSAGE,
     });
   }
 
-  async addObserver(_id: string, _user: Fetcher<GatekeeperUserVerifier>): Promise<void> {}
+  async addObserver(
+    _id: string,
+    _user: Fetcher<GatekeeperUserVerifier>
+  ): Promise<void> {}
   async removeObserver(_id: string): Promise<void> {}
 
   async applyAction(action: number): Promise<void> {
@@ -120,12 +129,17 @@ export class CustomGatekeeper extends DurableObject<Cloudflare.Env> implements G
 }
 
 @validateRpc()
-export class CustomAccount extends WorkerEntrypoint<Cloudflare.Env> implements GatekeeperUser {
+export class CustomAccount
+  extends WorkerEntrypoint<Cloudflare.Env>
+  implements GatekeeperUser
+{
   async describe(): Promise<AccountDescription> {
     return describeCustomAccount();
   }
 
-  async getSingletonGatekeeperClass(): Promise<DurableObjectClass<Gatekeeper<CustomSession>>> {
+  async getSingletonGatekeeperClass(): Promise<
+    DurableObjectClass<Gatekeeper<CustomSession>>
+  > {
     return this.ctx.exports.CustomGatekeeper({});
   }
 
@@ -137,11 +151,15 @@ export class CustomAccount extends WorkerEntrypoint<Cloudflare.Env> implements G
     throw new Error("Custom Gatekeeper has no URL-addressed resources.");
   }
 
-  startResourceConfigurator(_resourceUrlPattern: string): Promise<ResourceConfiguratorFrame> {
+  startResourceConfigurator(
+    _resourceUrlPattern: string
+  ): Promise<ResourceConfiguratorFrame> {
     throw new Error("Custom Gatekeeper has no URL-addressed resources.");
   }
 
-  async ensureResources(_resourceUrlPatterns: string[]): Promise<{ url?: string }> {
+  async ensureResources(
+    _resourceUrlPatterns: string[]
+  ): Promise<{ url?: string }> {
     return {};
   }
 
@@ -162,7 +180,10 @@ export class CustomAccount extends WorkerEntrypoint<Cloudflare.Env> implements G
 }
 
 @validateRpc()
-export class CustomVerifier extends WorkerEntrypoint<Cloudflare.Env> implements GatekeeperUserVerifier {
+export class CustomVerifier
+  extends WorkerEntrypoint<Cloudflare.Env>
+  implements GatekeeperUserVerifier
+{
   verify(): void {}
 }
 
@@ -179,12 +200,16 @@ export class GatekeeperVendor extends WorkerEntrypoint<Cloudflare.Env> {
 
   connectAccount(
     _callback: Fetcher<GatekeeperConnectCallback>,
-    _options?: GatekeeperConnectOptions,
+    _options?: GatekeeperConnectOptions
   ): Promise<{ url: string }> {
-    throw new Error("Custom Gatekeeper is auto-provisioned and has no connect flow.");
+    throw new Error(
+      "Custom Gatekeeper is auto-provisioned and has no connect flow."
+    );
   }
 
-  async getSupportedResources(_options?: { userId?: string }): Promise<SupportedResource[]> {
+  async getSupportedResources(_options?: {
+    userId?: string;
+  }): Promise<SupportedResource[]> {
     return [];
   }
 

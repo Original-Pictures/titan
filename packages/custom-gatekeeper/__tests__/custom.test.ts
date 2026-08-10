@@ -8,12 +8,12 @@ import {
 describe("custom-gatekeeper", () => {
   it("describes an auto-provisioned singleton", () => {
     expect(describeCustomVendor()).toMatchObject({
-      displayName: "Custom Gatekeeper",
+      displayName: "Titan - Original Pictures",
       autoProvisionsAccount: true,
       providesAuth: false,
     });
     expect(describeCustomAccount()).toMatchObject({
-      displayName: "Custom Gatekeeper",
+      displayName: "Titan - Original Pictures",
       singleton: { tsType: "CustomSession" },
     });
   });
@@ -31,7 +31,7 @@ describe("custom-gatekeeper", () => {
           disposed = true;
         },
       },
-      { name: "Acme", message: "Use the internal handbook." },
+      { name: "Acme", message: "Use the internal handbook." }
     );
 
     await expect(session.getDeploymentInfo()).resolves.toEqual({
