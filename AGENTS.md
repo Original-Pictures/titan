@@ -11,7 +11,7 @@ Titan is Original Pictures' deployment of [Cloudflare OS](https://github.com/clo
 
 ## The submodule is OUR fork — read before touching it
 
-`cloudflare-os` is pinned in [`.gitmodules`](.gitmodules) to **[`Original-Pictures/cloudflare-os`](https://github.com/Original-Pictures/cloudflare-os)** — a fork of `cloudflare/cloudflare-os` — at an explicit commit on branch `titan/per-agent-instructions`, **not** to upstream. We fork only for product behavior that can't be expressed through the wrapper/Worker boundary (e.g. per-agent spawner instructions); everything else stays in this repo.
+`cloudflare-os` is pinned in [`.gitmodules`](.gitmodules) to **[`Original-Pictures/cloudflare-os`](https://github.com/Original-Pictures/cloudflare-os)** — a fork of `cloudflare/cloudflare-os` — at an explicit commit on the fork's `main` branch, **not** upstream. We fork only for product behavior that can't be expressed through the wrapper/Worker boundary (e.g. per-agent spawner instructions, two-way Slack); everything else stays in this repo.
 
 Consequences for agents:
 

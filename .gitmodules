@@ -1,4 +1,4 @@
 [submodule "cloudflare-os"]
 	path = cloudflare-os
 	url = https://github.com/Original-Pictures/cloudflare-os.git
-	branch = titan/per-agent-instructions
+	branch = main

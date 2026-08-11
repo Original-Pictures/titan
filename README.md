@@ -124,7 +124,7 @@ The complete control reference and recipes live in [Customization](docs/customiz
 
 ### Upstream fork and upgrades
 
-The `cloudflare-os` submodule tracks [`Original-Pictures/cloudflare-os`](https://github.com/Original-Pictures/cloudflare-os) — a fork of upstream `cloudflare/cloudflare-os` — pinned by [`.gitmodules`](.gitmodules) to an explicit commit on the `titan/per-agent-instructions` branch. We fork only for product behavior that can't be expressed through the wrapper/Worker boundary (the last row of the [Customization](#customization) table); every other control stays in this repo. Keep carried changes minimal and upstream-friendly so the merge below stays cheap.
+The `cloudflare-os` submodule tracks [`Original-Pictures/cloudflare-os`](https://github.com/Original-Pictures/cloudflare-os) — a fork of upstream `cloudflare/cloudflare-os` — pinned by [`.gitmodules`](.gitmodules) to an explicit commit on the fork's `main` branch. We fork only for product behavior that can't be expressed through the wrapper/Worker boundary (the last row of the [Customization](#customization) table); every other control stays in this repo. Keep carried changes minimal and upstream-friendly so the merge below stays cheap.
 
 To adopt an upstream release:
 
