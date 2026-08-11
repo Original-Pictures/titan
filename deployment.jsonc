@@ -15,6 +15,10 @@
       "route": { "customDomain": "originalpictures.dev" }
     },
     "context": { "name": "op-titan-context" },
+
+    // Scheduled Tasks gatekeeper (ambient, no OAuth). Lets agents register recurring and one-shot
+    // workspace runs; managed from /gatekeepers/scheduler. Deployed unconditionally like context.
+    "scheduler": { "name": "op-titan-scheduler" },
     "customGatekeeper": { "name": "op-titan-gatekeeper" },
     "errorReporter": { "name": "op-titan-errors" },
 

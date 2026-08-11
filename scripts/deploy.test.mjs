@@ -9,6 +9,7 @@ const validConfig = {
   workers: {
     workshop: { name: "acme-cloudflare-os", route: { customDomain: "os.example.com" } },
     context: { name: "acme-cloudflare-os-context" },
+    scheduler: { name: "acme-cloudflare-os-scheduler" },
     customGatekeeper: { name: "acme-cloudflare-os-custom" },
     errorReporter: { name: "acme-cloudflare-os-errors" },
   },
@@ -44,6 +45,7 @@ async function baseConfigs() {
   return {
     workshop: await baseConfig("../cloudflare-os/packages/workshop-backend/wrangler.jsonc"),
     context: await baseConfig("../cloudflare-os/packages/gatekeeper-context/wrangler.jsonc"),
+    scheduler: await baseConfig("../cloudflare-os/packages/gatekeeper-scheduler/wrangler.jsonc"),
     customGatekeeper: await baseConfig("../packages/custom-gatekeeper/wrangler.jsonc"),
     errorReporter: {
       name: "error-reporter",
@@ -130,6 +132,11 @@ test("generates Access-mode Workshop, Context, and custom Gatekeeper configs", a
     {
       binding: "GATEKEEPER_CUSTOM",
       service: "acme-cloudflare-os-custom",
+      entrypoint: "GatekeeperVendor",
+    },
+    {
+      binding: "GATEKEEPER_SCHEDULER",
+      service: "acme-cloudflare-os-scheduler",
       entrypoint: "GatekeeperVendor",
     },
   ]);

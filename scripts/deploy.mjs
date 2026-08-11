@@ -11,6 +11,7 @@ const generatedName = "wrangler.prod.jsonc";
 const generatedPaths = {
   workshop: join(root, "cloudflare-os/packages/workshop-backend", generatedName),
   context: join(root, "cloudflare-os/packages/gatekeeper-context", generatedName),
+  scheduler: join(root, "cloudflare-os/packages/gatekeeper-scheduler", generatedName),
   customGatekeeper: join(root, "packages/custom-gatekeeper", generatedName),
   errorReporter: join(root, "packages/error-reporter", generatedName),
   router: join(root, "cloudflare-os/packages/router", generatedName),
@@ -43,6 +44,7 @@ const requiredPaths = [
   "accountId",
   "workers.workshop.name",
   "workers.context.name",
+  "workers.scheduler.name",
   "workers.customGatekeeper.name",
   "access.issuer",
   "access.audience",
@@ -288,6 +290,7 @@ export function generateConfigs(config, bases) {
   const routerMode = integrations.length > 0;
   const workshop = structuredClone(bases.workshop);
   const context = structuredClone(bases.context);
+  const scheduler = structuredClone(bases.scheduler);
   const customGatekeeper = structuredClone(bases.customGatekeeper);
   const errorReporter = config.errorReporting.enabled
     ? structuredClone(bases.errorReporter)
@@ -342,6 +345,13 @@ export function generateConfigs(config, bases) {
       service: config.workers.customGatekeeper.name,
       entrypoint: "GatekeeperVendor",
     },
+    // Scheduled Tasks: an ambient, auto-provisioned gatekeeper (no OAuth) that lets agents register
+    // recurring and one-shot workspace runs. Deployed unconditionally like Context.
+    {
+      binding: "GATEKEEPER_SCHEDULER",
+      service: config.workers.scheduler.name,
+      entrypoint: "GatekeeperVendor",
+    },
     // Vendor bindings for the built-in gatekeepers. The backend discovers integrations by scanning
     // GATEKEEPER_* env keys and calls their GatekeeperVendor entrypoint (auth-vendors.ts).
     ...integrations.map((it) => ({
@@ -377,6 +387,11 @@ export function generateConfigs(config, bases) {
     { binding: "CONTEXT_COLLECTIONS", ...(config.context.kvNamespaceId
       ? { id: config.context.kvNamespaceId } : {}) },
   ];
+
+  // Scheduled Tasks Worker. Ambient like Context: no route, no vars — its Durable Objects
+  // (ScheduleDriver, SchedulerGatekeeper) are reached via ctx.exports and provisioned by its own
+  // migration on first deploy.
+  setCommon(scheduler, config, config.workers.scheduler.name);
 
   setCommon(customGatekeeper, config, config.workers.customGatekeeper.name);
   customGatekeeper.vars = {
@@ -416,6 +431,7 @@ export function generateConfigs(config, bases) {
   return {
     workshop,
     context,
+    scheduler,
     customGatekeeper,
     ...(router && { router }),
     ...gatekeepers,
@@ -425,7 +441,9 @@ export function generateConfigs(config, bases) {
 
 async function readJsonc(path) {
   const errors = [];
-  const result = parse(await readFile(path, "utf8"), errors);
+  // Upstream wrangler.jsonc files are JSONC: comments are on by default, but trailing commas
+  // (used by e.g. gatekeeper-scheduler) must be opted into or the parser reports them as errors.
+  const result = parse(await readFile(path, "utf8"), errors, { allowTrailingComma: true });
   if (errors.length) {
     const where = relative(root, path) || path;
     throw new Error(`${where}: ${printParseErrorCode(errors[0].error)} at offset ${errors[0].offset}`);
@@ -460,6 +478,7 @@ function requireSubmodule() {
 
 function build(config) {
   run(["--dir", "cloudflare-os", "--filter", "@gadgets/gatekeeper-context", "build"]);
+  run(["--dir", "cloudflare-os", "--filter", "@gadgets/gatekeeper-scheduler", "build"]);
   run(["--dir", "packages/custom-gatekeeper", "run", "build"]);
   for (const it of enabledIntegrations(config)) {
     run(["--dir", "cloudflare-os", "--filter", it.pkg, "build"]);
@@ -481,6 +500,7 @@ async function main() {
   const bases = {
     workshop: await readJsonc(join(root, "cloudflare-os/packages/workshop-backend/wrangler.jsonc")),
     context: await readJsonc(join(root, "cloudflare-os/packages/gatekeeper-context/wrangler.jsonc")),
+    scheduler: await readJsonc(join(root, "cloudflare-os/packages/gatekeeper-scheduler/wrangler.jsonc")),
     customGatekeeper: await readJsonc(join(root, "packages/custom-gatekeeper/wrangler.jsonc")),
     errorReporter: await readJsonc(join(root, "packages/error-reporter/wrangler.jsonc")),
   };
@@ -505,6 +525,7 @@ async function main() {
     const order = [
       ...(config.errorReporting.enabled ? ["errorReporter"] : []),
       "context",
+      "scheduler",
       "customGatekeeper",
       ...integrations.map((it) => it.id),
       "workshop",
