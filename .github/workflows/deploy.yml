@@ -1,0 +1,58 @@
+name: Deploy Titan
+
+# Deploys the Cloudflare OS stack on every push to main. Requires a CLOUDFLARE_API_TOKEN
+# repository secret (Workers Scripts:Edit, plus KV/R2/AI Gateway scopes as your deployment.jsonc
+# uses). The Cloudflare account is read from deployment.jsonc, so no account-id secret is needed.
+# Per-Worker application secrets (CF_AI_GATEWAY_API_TOKEN, integration OAuth client secrets) are
+# set out of band with `wrangler secret put` and persist across deploys — this workflow does not
+# manage them.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+# One deploy at a time; never cancel an in-flight deploy mid-rollout.
+concurrency:
+  group: deploy-titan
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout (with the cloudflare-os fork submodule)
+        uses: actions/checkout@v4
+        with:
+          # The submodule is the public Original-Pictures/cloudflare-os fork, so no extra token
+          # is needed to fetch it at the pinned commit.
+          submodules: recursive
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.9.0
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install wrapper dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install submodule dependencies
+        run: pnpm --dir cloudflare-os install --frozen-lockfile
+
+      # Gate: validates deployment.jsonc, runs tests, builds, and dry-run deploys every Worker.
+      - name: Validate, test, build, dry-run
+        run: pnpm check
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
+      - name: Deploy
+        run: pnpm deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
