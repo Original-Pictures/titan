@@ -121,3 +121,14 @@ The complete control reference and recipes live in [Customization](docs/customiz
 - Roll a Worker back from its dashboard deployment history or with [`wrangler rollback`](https://developers.cloudflare.com/workers/versions-and-deployments/rollbacks/).
 - Follow the [upgrade checklist](docs/customization.md#upgrade) before changing the pinned submodule.
 - Review the upstream Cloudflare OS documentation and release history before adopting behavior changes.
+
+### Upstream fork and upgrades
+
+The `cloudflare-os` submodule tracks [`Original-Pictures/cloudflare-os`](https://github.com/Original-Pictures/cloudflare-os) — a fork of upstream `cloudflare/cloudflare-os` — pinned by [`.gitmodules`](.gitmodules) to an explicit commit on the `titan/per-agent-instructions` branch. We fork only for product behavior that can't be expressed through the wrapper/Worker boundary (the last row of the [Customization](#customization) table); every other control stays in this repo. Keep carried changes minimal and upstream-friendly so the merge below stays cheap.
+
+To adopt an upstream release:
+
+1. In `cloudflare-os/`, add upstream once: `git remote add upstream https://github.com/cloudflare/cloudflare-os.git`.
+2. `git fetch upstream`, then merge or rebase our fork branch onto the intended upstream **commit** (an explicit SHA, never a moving branch head).
+3. Resolve conflicts in our carried patches, run the submodule's checks, and `git push fork`.
+4. Back in this repo, move the gitlink to the new fork commit (`git -C cloudflare-os checkout <sha>`, then `git add cloudflare-os`), then follow the [upgrade checklist](docs/customization.md#upgrade) before deploying.
