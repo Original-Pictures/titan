@@ -47,7 +47,7 @@
     "enabled": true,
     "name": "op-titan-ai",
     "accountId": "1a4ab9bfc9016c26a79d18840d614a03",
-    "providers": ["anthropic", "openai", "google"],
+    "providers": ["anthropic", "openai", "google", "openrouter"],
 
     // "direct" sends Workers AI to its REST endpoint. "gateway" adds AI Gateway logs.
     "workersAi": { "mode": "gateway", "gateway": "op-titan-ai" }
