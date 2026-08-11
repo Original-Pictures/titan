@@ -132,6 +132,13 @@ For Workers AI through the default gateway, current Cloudflare guidance calls fo
 
 The starter enables structured custom logs and a private console-backed Error Reporter, while invocation logs, traces, and browser reporting remain separate controls. See [Observability and error reporting](observability.md) for signal selection, sampling, triage, privacy, source maps, frontend reporting, and external destinations.
 
+## Built-in integrations
+
+Enable GitHub, Google, Slack, and Linear from the `integrations` block in `deployment.jsonc`. Each
+enabled service deploys its upstream Gatekeeper and, because OAuth needs a stable host, promotes the
+deployment to a router-fronted topology with a custom domain. See the [integrations
+runbook](integrations.md) for OAuth-app setup, secrets, and verification.
+
 ## Custom Gatekeepers
 
 Keep deployment-owned Gatekeepers under `packages/`, outside the `cloudflare-os` submodule. `scripts/deploy.mjs` binds this repository's example to the Workshop as `GATEKEEPER_CUSTOM` and Context as `GATEKEEPER_CONTEXT`.

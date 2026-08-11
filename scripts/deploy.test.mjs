@@ -225,3 +225,84 @@ test("generates binding-only storage for automatic provisioning", async () => {
   assert.deepEqual(generated.workshop.r2_buckets, [{ binding: "BLUEPRINT_CONTENT" }]);
   assert.deepEqual(generated.context.kv_namespaces, [{ binding: "CONTEXT_COLLECTIONS" }]);
 });
+
+async function baseConfigsWithIntegrations() {
+  return {
+    ...(await baseConfigs()),
+    router: await baseConfig("../cloudflare-os/packages/router/wrangler.jsonc"),
+    github: await baseConfig("../cloudflare-os/packages/gatekeeper-github/wrangler.jsonc"),
+    slack: await baseConfig("../cloudflare-os/packages/gatekeeper-slack/wrangler.jsonc"),
+  };
+}
+
+function integrationConfig() {
+  const config = structuredClone(validConfig);
+  config.workers.router = { name: "acme-cloudflare-os-router" };
+  config.integrations = {
+    github: { enabled: true, name: "acme-cloudflare-os-github" },
+    slack: { enabled: true, name: "acme-cloudflare-os-slack" },
+    linear: { enabled: false, name: "acme-cloudflare-os-linear" },
+  };
+  return config;
+}
+
+test("requires a custom domain when integrations are enabled", () => {
+  const config = integrationConfig();
+  config.workers.workshop.route = { workersDev: true };
+  assert.throws(() => validateConfig(config), /custom domain/i);
+});
+
+test("requires a router name when integrations are enabled", () => {
+  const config = integrationConfig();
+  delete config.workers.router;
+  assert.throws(() => validateConfig(config), /router Worker name/i);
+});
+
+test("rejects a gatekeeper name that collides with another Worker", () => {
+  const config = integrationConfig();
+  config.integrations.github.name = config.workers.context.name;
+  assert.throws(() => validateConfig(config), /unique/i);
+});
+
+test("fronts the private backend with a router and per-service gatekeepers", async () => {
+  const generated = generateConfigs(integrationConfig(), await baseConfigsWithIntegrations());
+
+  // Router owns the public origin; the backend goes private (no route, no assets).
+  assert.deepEqual(generated.router.routes, [{ pattern: "os.example.com", custom_domain: true }]);
+  assert.deepEqual(generated.router.services, [
+    { binding: "WORKSHOP_BACKEND", service: "acme-cloudflare-os" },
+    { binding: "GATEKEEPER_GITHUB", service: "acme-cloudflare-os-github" },
+    { binding: "GATEKEEPER_SLACK", service: "acme-cloudflare-os-slack" },
+  ]);
+  assert.equal(generated.router.assets.binding, "ASSETS");
+  assert.equal(generated.workshop.routes, undefined);
+  assert.equal(generated.workshop.workers_dev, false);
+  assert.equal(generated.workshop.assets, undefined);
+
+  // The backend discovers each enabled gatekeeper via a GatekeeperVendor binding.
+  const vendorBindings = generated.workshop.services.filter((s) => s.entrypoint === "GatekeeperVendor");
+  assert.ok(vendorBindings.some((s) => s.binding === "GATEKEEPER_GITHUB" && s.service === "acme-cloudflare-os-github"));
+  assert.ok(vendorBindings.some((s) => s.binding === "GATEKEEPER_SLACK" && s.service === "acme-cloudflare-os-slack"));
+
+  // Each gatekeeper Worker is private and knows the public path its OAuth redirect lands on.
+  assert.equal(generated.github.name, "acme-cloudflare-os-github");
+  assert.equal(generated.github.vars.BASE_URL, "https://os.example.com/gatekeeper/github");
+  assert.equal(generated.slack.vars.BASE_URL, "https://os.example.com/gatekeeper/slack");
+  assert.equal(generated.github.workers_dev, false);
+
+  // The disabled integration is not generated or bound.
+  assert.equal(generated.linear, undefined);
+  assert.equal(generated.workshop.services.some((s) => s.binding === "GATEKEEPER_LINEAR"), false);
+});
+
+test("keeps the single-backend topology when no integrations are enabled", async () => {
+  const config = integrationConfig();
+  config.integrations.github.enabled = false;
+  config.integrations.slack.enabled = false;
+
+  const generated = generateConfigs(config, await baseConfigsWithIntegrations());
+
+  assert.equal(generated.router, undefined);
+  assert.deepEqual(generated.workshop.routes, [{ pattern: "os.example.com", custom_domain: true }]);
+  assert.ok(generated.workshop.assets);
+});

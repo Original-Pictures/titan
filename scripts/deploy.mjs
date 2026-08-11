@@ -13,7 +13,31 @@ const generatedPaths = {
   context: join(root, "cloudflare-os/packages/gatekeeper-context", generatedName),
   customGatekeeper: join(root, "packages/custom-gatekeeper", generatedName),
   errorReporter: join(root, "packages/error-reporter", generatedName),
+  router: join(root, "cloudflare-os/packages/router", generatedName),
+  github: join(root, "cloudflare-os/packages/gatekeeper-github", generatedName),
+  google: join(root, "cloudflare-os/packages/gatekeeper-google", generatedName),
+  slack: join(root, "cloudflare-os/packages/gatekeeper-slack", generatedName),
+  linear: join(root, "cloudflare-os/packages/gatekeeper-linear", generatedName),
 };
+
+// Built-in Cloudflare OS gatekeepers this starter can deploy. Each is discovered by the backend and
+// router from a `GATEKEEPER_<NAME>` binding (see cloudflare-os auth-vendors.ts / router/src/index.ts).
+// `pkg` is the pnpm workspace name to build; the package directory is generatedPaths[id]'s dirname.
+const INTEGRATIONS = [
+  { id: "github", pkg: "@gadgets/github-gatekeeper", binding: "GATEKEEPER_GITHUB" },
+  { id: "google", pkg: "@gadgets/google-gatekeeper", binding: "GATEKEEPER_GOOGLE" },
+  { id: "slack", pkg: "@gadgets/slack-gatekeeper", binding: "GATEKEEPER_SLACK" },
+  { id: "linear", pkg: "@gadgets/linear-gatekeeper", binding: "GATEKEEPER_LINEAR" },
+];
+
+// The enabled integrations, each carrying its configured Worker name. Absent/false `integrations`
+// yields [], which keeps the pre-router single-backend topology unchanged.
+function enabledIntegrations(config) {
+  const configured = config.integrations ?? {};
+  return INTEGRATIONS
+    .filter((it) => configured[it.id]?.enabled)
+    .map((it) => ({ ...it, name: configured[it.id].name }));
+}
 
 const requiredPaths = [
   "accountId",
@@ -117,11 +141,14 @@ export function validateConfig(config) {
       config.aiGateway.enabled && !/^[a-f\d]{32}$/i.test(config.aiGateway.accountId)) {
     throw new Error("Cloudflare account IDs must be 32 hexadecimal characters.");
   }
+  const integrations = enabledIntegrations(config);
   const workerNames = Object.entries(config.workers)
     .filter(([key]) => key !== "errorReporter" || config.errorReporting.enabled)
-    .map(([, worker]) => worker.name);
+    .filter(([key]) => key !== "router" || integrations.length > 0)
+    .map(([, worker]) => worker.name)
+    .concat(integrations.map((it) => it.name));
   if (new Set(workerNames).size !== workerNames.length) {
-    throw new Error("Workshop, Context, and custom Gatekeeper Worker names must be unique.");
+    throw new Error("Every deployed Worker name (Workshop, Context, gatekeepers, router) must be unique.");
   }
   if (!workerNames.every((name) => /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(name))) {
     throw new Error("Worker names must use lowercase letters, numbers, and hyphens.");
@@ -140,6 +167,28 @@ export function validateConfig(config) {
   const hostnamePattern = /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
   if (route.customDomain && !hostnamePattern.test(route.customDomain)) {
     throw new Error("Workshop customDomain must be a lowercase hostname.");
+  }
+
+  for (const it of INTEGRATIONS) {
+    const entry = config.integrations?.[it.id];
+    if (entry !== undefined && typeof entry.enabled !== "boolean") {
+      throw new Error(`integrations.${it.id}.enabled must be a boolean.`);
+    }
+  }
+  if (integrations.length > 0) {
+    if (typeof config.workers.router?.name !== "string" || !config.workers.router.name) {
+      throw new Error("Enabling integrations requires a router Worker name: workers.router.name.");
+    }
+    if (!route.customDomain) {
+      throw new Error(
+        "Integrations require a Workshop custom domain, because OAuth redirect URIs need a stable " +
+        "host. Set workers.workshop.route.customDomain instead of workersDev.");
+    }
+    for (const it of integrations) {
+      if (typeof it.name !== "string" || !it.name) {
+        throw new Error(`Integration "${it.id}" needs a Worker name: integrations.${it.id}.name.`);
+      }
+    }
   }
 
   const issuer = new URL(config.access.issuer);
@@ -232,6 +281,11 @@ function setCommon(config, deployment, name, route = { workersDev: false }) {
 
 export function generateConfigs(config, bases) {
   validateConfig(config);
+  const integrations = enabledIntegrations(config);
+  // With integrations, a router Worker owns the public origin and the backend goes private behind
+  // it (mirrors the upstream production topology in cloudflare-os/packages/router). Without them,
+  // the backend stays directly on the route and serves the frontend itself.
+  const routerMode = integrations.length > 0;
   const workshop = structuredClone(bases.workshop);
   const context = structuredClone(bases.context);
   const customGatekeeper = structuredClone(bases.customGatekeeper);
@@ -239,7 +293,8 @@ export function generateConfigs(config, bases) {
     ? structuredClone(bases.errorReporter)
     : undefined;
 
-  setCommon(workshop, config, config.workers.workshop.name, config.workers.workshop.route);
+  setCommon(workshop, config, config.workers.workshop.name,
+    routerMode ? { workersDev: false } : config.workers.workshop.route);
   workshop.vars = {
     ADMINS: config.access.admins,
     CF_ACCESS_ISS: config.access.issuer.replace(/\/$/, ""),
@@ -287,6 +342,13 @@ export function generateConfigs(config, bases) {
       service: config.workers.customGatekeeper.name,
       entrypoint: "GatekeeperVendor",
     },
+    // Vendor bindings for the built-in gatekeepers. The backend discovers integrations by scanning
+    // GATEKEEPER_* env keys and calls their GatekeeperVendor entrypoint (auth-vendors.ts).
+    ...integrations.map((it) => ({
+      binding: it.binding,
+      service: it.name,
+      entrypoint: "GatekeeperVendor",
+    })),
   ];
   workshop.kv_namespaces = [
     { binding: "BLUEPRINTS", ...(config.resources.blueprintsKvNamespaceId
@@ -298,11 +360,17 @@ export function generateConfigs(config, bases) {
     { binding: "BLUEPRINT_CONTENT", ...(config.resources.blueprintContentBucket
       ? { bucket_name: config.resources.blueprintContentBucket } : {}) },
   ];
-  workshop.assets = {
-    directory: "../workshop-frontend/dist",
-    not_found_handling: "single-page-application",
-    run_worker_first: ["/api", "/api/*", "/blueprint-screenshot/*"],
-  };
+  // In router mode the router serves the frontend and the backend only answers /api and
+  // /blueprint-screenshot forwarded to it, so it needs no assets of its own.
+  if (routerMode) {
+    delete workshop.assets;
+  } else {
+    workshop.assets = {
+      directory: "../workshop-frontend/dist",
+      not_found_handling: "single-page-application",
+      run_worker_first: ["/api", "/api/*", "/blueprint-screenshot/*"],
+    };
+  }
 
   setCommon(context, config, config.workers.context.name);
   context.kv_namespaces = [
@@ -320,7 +388,39 @@ export function generateConfigs(config, bases) {
     setCommon(errorReporter, config, config.workers.errorReporter.name);
   }
 
-  return { workshop, context, customGatekeeper, ...(errorReporter && { errorReporter }) };
+  // Router and per-service gatekeeper configs, only when at least one integration is enabled.
+  let router;
+  const gatekeepers = {};
+  if (routerMode) {
+    const host = config.workers.workshop.route.customDomain;
+
+    router = structuredClone(bases.router);
+    setCommon(router, config, config.workers.router.name, config.workers.workshop.route);
+    // Router owns the origin: forward to the private backend and dispatch /gatekeeper/<name>/* to
+    // each gatekeeper's default (fetch) entrypoint. The base's ASSETS stanza serves the frontend.
+    router.services = [
+      { binding: "WORKSHOP_BACKEND", service: config.workers.workshop.name },
+      ...integrations.map((it) => ({ binding: it.binding, service: it.name })),
+    ];
+
+    for (const it of integrations) {
+      const gatekeeper = structuredClone(bases[it.id]);
+      setCommon(gatekeeper, config, it.name, { workersDev: false });
+      // The gatekeeper builds its OAuth redirect URI from BASE_URL; the router routes this path to
+      // it. Client credentials are Wrangler secrets set out of band (see docs/integrations.md).
+      gatekeeper.vars = { ...gatekeeper.vars, BASE_URL: `https://${host}/gatekeeper/${it.id}` };
+      gatekeepers[it.id] = gatekeeper;
+    }
+  }
+
+  return {
+    workshop,
+    context,
+    customGatekeeper,
+    ...(router && { router }),
+    ...gatekeepers,
+    ...(errorReporter && { errorReporter }),
+  };
 }
 
 async function readJsonc(path) {
@@ -361,6 +461,9 @@ function requireSubmodule() {
 function build(config) {
   run(["--dir", "cloudflare-os", "--filter", "@gadgets/gatekeeper-context", "build"]);
   run(["--dir", "packages/custom-gatekeeper", "run", "build"]);
+  for (const it of enabledIntegrations(config)) {
+    run(["--dir", "cloudflare-os", "--filter", it.pkg, "build"]);
+  }
   if (config.errorReporting.enabled) {
     run(["--dir", "packages/error-reporter", "run", "build"]);
   }
@@ -374,12 +477,20 @@ function build(config) {
 async function main() {
   requireSubmodule();
   const config = await readDeployment(join(root, "deployment.jsonc"));
-  const generated = generateConfigs(config, {
+  const integrations = enabledIntegrations(config);
+  const bases = {
     workshop: await readJsonc(join(root, "cloudflare-os/packages/workshop-backend/wrangler.jsonc")),
     context: await readJsonc(join(root, "cloudflare-os/packages/gatekeeper-context/wrangler.jsonc")),
     customGatekeeper: await readJsonc(join(root, "packages/custom-gatekeeper/wrangler.jsonc")),
     errorReporter: await readJsonc(join(root, "packages/error-reporter/wrangler.jsonc")),
-  });
+  };
+  if (integrations.length > 0) {
+    bases.router = await readJsonc(join(root, "cloudflare-os/packages/router/wrangler.jsonc"));
+    for (const it of integrations) {
+      bases[it.id] = await readJsonc(join(dirname(generatedPaths[it.id]), "wrangler.jsonc"));
+    }
+  }
+  const generated = generateConfigs(config, bases);
 
   try {
     for (const [name, generatedConfig] of Object.entries(generated)) {
@@ -389,16 +500,20 @@ async function main() {
     if (check) run(["test"]);
     build(config);
     const deployArgs = check ? ["--dry-run"] : [];
-    if (config.errorReporting.enabled) {
+    // Deploy dependencies before their dependents: gatekeepers before the backend that binds their
+    // vendor entrypoints, and the backend before the router that fronts it.
+    const order = [
+      ...(config.errorReporting.enabled ? ["errorReporter"] : []),
+      "context",
+      "customGatekeeper",
+      ...integrations.map((it) => it.id),
+      "workshop",
+      ...(integrations.length > 0 ? ["router"] : []),
+    ];
+    for (const key of order) {
       run(["exec", "wrangler", "deploy", "--config", generatedName, ...deployArgs],
-        join(root, "packages/error-reporter"));
+        dirname(generatedPaths[key]));
     }
-    run(["exec", "wrangler", "deploy", "--config", generatedName, ...deployArgs],
-      join(root, "cloudflare-os/packages/gatekeeper-context"));
-    run(["exec", "wrangler", "deploy", "--config", generatedName, ...deployArgs],
-      join(root, "packages/custom-gatekeeper"));
-    run(["exec", "wrangler", "deploy", "--config", generatedName, ...deployArgs],
-      join(root, "cloudflare-os/packages/workshop-backend"));
   } finally {
     await Promise.all(Object.values(generatedPaths).map((path) => rm(path, { force: true })));
   }
