@@ -1,14 +1,15 @@
 # Integrations
 
-Connect agents and Gadgets to GitHub, Google (Drive/Docs/Sheets/Gmail/Calendar), Slack, and Linear
-using the built-in Gatekeepers that ship with the pinned `cloudflare-os` submodule. Nothing is
-patched upstream: enabling an integration deploys its Gatekeeper Worker and binds it into the
-deployment, exactly like the [custom Gatekeeper](customization.md#custom-gatekeepers).
+Connect agents and Gadgets to GitHub, Google (Drive/Docs/Sheets/Gmail/Calendar), Slack, Linear, and
+Exa Web Search using private Gatekeeper Workers. The OAuth Gatekeepers ship with the pinned
+`cloudflare-os` submodule; the Exa Gatekeeper is wrapper-owned. Nothing patches upstream: enabling
+an integration deploys its Worker and binds it into Workshop, exactly like the
+[custom Gatekeeper](customization.md#custom-gatekeepers).
 
 ## How it works
 
-Cloudflare OS discovers integrations from `GATEKEEPER_<NAME>` service bindings. A Gatekeeper needs
-two kinds of reach, so enabling one changes the topology:
+Cloudflare OS discovers integrations from `GATEKEEPER_<NAME>` service bindings. Every Gatekeeper
+needs agent discovery; OAuth Gatekeepers additionally need a browser callback:
 
 - **Agent discovery** — the Workshop backend binds each Gatekeeper's `GatekeeperVendor` entrypoint
   so agents and Gadgets can call it.
@@ -17,8 +18,9 @@ two kinds of reach, so enabling one changes the topology:
   the frontend, forwards `/api` to the backend, and dispatches `/gatekeeper/<name>/*` to the right
   Gatekeeper. The backend becomes private behind it.
 
-`scripts/deploy.mjs` builds this automatically the moment at least one integration is enabled. With
-none enabled, the deployment keeps its simpler single-backend shape and no router is deployed.
+`scripts/deploy.mjs` builds the router automatically when at least one OAuth integration is enabled.
+Private ambient Gatekeepers such as Exa do not change the public topology and work with either a
+custom domain or a `workers.dev` route.
 
 ```
                     ┌────────────────────── router (public origin) ──────────────────────┐
@@ -29,7 +31,7 @@ users ── HTTPS ───▶ │  /gatekeeper/<name>/*  →  gatekeeper Worke
                          backend also binds each GATEKEEPER_<NAME> vendor for agent discovery
 ```
 
-## Prerequisite: a custom domain
+## OAuth prerequisite: a custom domain
 
 OAuth redirect URIs must be stable, so integrations require a Workshop **custom domain**. In
 [`deployment.jsonc`](../deployment.jsonc) set:
@@ -42,7 +44,8 @@ OAuth redirect URIs must be stable, so integrations require a Workshop **custom 
 ```
 
 The hostname must be in an active Cloudflare zone on your account; Wrangler creates DNS and TLS.
-A `workers.dev` route cannot host path-scoped OAuth callbacks and the deploy will refuse to proceed.
+A `workers.dev` route cannot host path-scoped OAuth callbacks and the deploy will refuse to proceed
+when an OAuth integration is enabled. Exa Web Search does not have this requirement.
 
 ## 1. Enable the integrations you want
 
@@ -53,11 +56,38 @@ In `deployment.jsonc`, flip `enabled` and keep a unique Worker name per service:
   "github": { "enabled": true,  "name": "op-titan-github" },
   "google": { "enabled": true,  "name": "op-titan-google" },
   "slack":  { "enabled": true,  "name": "op-titan-slack" },
-  "linear": { "enabled": true,  "name": "op-titan-linear" }
+  "linear": { "enabled": true,  "name": "op-titan-linear" },
+  "exa":    { "enabled": true,  "name": "op-titan-exa" }
 }
 ```
 
-The router Worker name comes from `workers.router.name` (default `op-titan-router`).
+The router Worker name comes from `workers.router.name` (default `op-titan-router`). Exa is never
+bound into that router because it has no browser-facing endpoints.
+
+## Exa Web Search
+
+Exa is an auto-provisioned, read-only singleton exposed to Gadget code as `EXA_SEARCH`. Its narrow
+contract supports `auto`, `fast`, and `instant` search, 1–25 results, domain and publication-date
+filters, and optional highlights/cache age. The Exa Worker makes the outbound request and returns
+only title, URL, publication date, author, and highlights; the API key never crosses the service
+binding.
+
+Each call asks the Gatekeeper approval queue to authorize an observation before transmitting the
+query to Exa. Search terms therefore leave Titan only after authorization, and upstream error bodies
+are not passed into Gadget context. The deployment uses a shared Exa account, so allowed users share
+its quota and cost authority.
+
+After the first deployment has created the exact Exa Worker identity, install its API key
+interactively. Do not paste the key into chat, a Gadget UI, `deployment.jsonc`, or a tracked file:
+
+```bash
+pnpm exec wrangler secret put EXA_API_KEY --name op-titan-exa
+```
+
+This command immediately deploys a new Worker version. Confirm the Wrangler account and exact Worker
+name first. Then open `/admin`, choose whether the ambient Exa Gatekeeper is disabled, optional, or
+enabled, and run one approved low-cost search with highlights. Verify returned links and excerpts,
+the Exa usage record, and the expected Worker logs without logging request bodies or credentials.
 
 ## 2. Register an OAuth app per service
 
@@ -128,4 +158,5 @@ integration if you want breadth over per-service depth.
 
 Set an integration's `enabled` back to `false` and redeploy. The Gatekeeper Worker is no longer
 bound and disappears from discovery; delete the Worker and its secrets separately if you want it
-fully removed. Disabling every integration returns the deployment to the single-backend topology.
+fully removed. Disabling every OAuth integration returns the deployment to the single-backend
+topology even if private ambient integrations such as Exa remain enabled.

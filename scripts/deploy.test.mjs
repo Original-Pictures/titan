@@ -313,3 +313,34 @@ test("keeps the single-backend topology when no integrations are enabled", async
   assert.deepEqual(generated.workshop.routes, [{ pattern: "os.example.com", custom_domain: true }]);
   assert.ok(generated.workshop.assets);
 });
+
+test("binds private Exa search without requiring a router or custom domain", async () => {
+  const config = structuredClone(validConfig);
+  config.workers.workshop.route = { workersDev: true };
+  config.integrations = {
+    exa: { enabled: true, name: "acme-cloudflare-os-exa" },
+  };
+  const bases = {
+    ...(await baseConfigs()),
+    exa: await baseConfig("../packages/exa-gatekeeper/wrangler.jsonc"),
+  };
+
+  const generated = generateConfigs(config, bases);
+
+  assert.equal(generated.router, undefined);
+  assert.equal(generated.workshop.workers_dev, true);
+  assert.ok(generated.workshop.assets);
+  assert.ok(generated.workshop.services.some((service) =>
+    service.binding === "GATEKEEPER_EXA" &&
+    service.service === "acme-cloudflare-os-exa" &&
+    service.entrypoint === "GatekeeperVendor"));
+  assert.equal(generated.exa.name, "acme-cloudflare-os-exa");
+  assert.equal(generated.exa.workers_dev, false);
+  assert.equal(generated.exa.routes, undefined);
+});
+
+test("requires an Exa Worker name when enabled", () => {
+  const config = structuredClone(validConfig);
+  config.integrations = { exa: { enabled: true } };
+  assert.throws(() => validateConfig(config), /integrations\.exa\.name/);
+});

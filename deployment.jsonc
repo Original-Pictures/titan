@@ -69,12 +69,12 @@
     "message": "Titan is Original Pictures internal AI workspace."
   },
 
-  // Built-in Cloudflare OS gatekeepers that connect agents and Gadgets to third-party services.
-  // Each enabled entry deploys its upstream gatekeeper Worker, binds it into the router (for OAuth
-  // at /gatekeeper/<name>/*) and into the Workshop backend (for agent discovery, entrypoint
-  // GatekeeperVendor). Users connect each service from /admin after deploy.
+  // Gatekeepers that connect agents and Gadgets to third-party services. OAuth-backed entries
+  // deploy their upstream Worker, bind it into the router at /gatekeeper/<name>/*, and bind its
+  // GatekeeperVendor into Workshop for agent discovery. Private ambient services such as Exa only
+  // need the Workshop service binding and have no public route.
   //
-  // Prerequisite: enabling ANY integration requires a Workshop custom domain (set
+  // Prerequisite: enabling an OAuth integration requires a Workshop custom domain (set
   // workers.workshop.route.customDomain above), because OAuth redirect URIs need a stable host.
   // OAuth client credentials are per-service Wrangler secrets, never stored here.
   // Reference: docs/integrations.md
@@ -82,7 +82,11 @@
     "github": { "enabled": true, "name": "op-titan-github" },
     "google": { "enabled": true, "name": "op-titan-google" },
     "slack": { "enabled": true, "name": "op-titan-slack" },
-    "linear": { "enabled": true, "name": "op-titan-linear" }
+    "linear": { "enabled": true, "name": "op-titan-linear" },
+
+    // Private, auto-provisioned web search. No OAuth route; EXA_API_KEY is installed separately
+    // as a Wrangler secret on this Worker. Reference: docs/integrations.md#exa-web-search
+    "exa": { "enabled": true, "name": "op-titan-exa" }
   },
 
   // Explicit backend issue reports go to a private Worker that emits structured console errors.
