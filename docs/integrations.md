@@ -68,7 +68,7 @@ Each service issues its own client credentials. The redirect URI is always
 | --- | --- | --- | --- |
 | **GitHub** | [Developer settings → OAuth Apps](https://github.com/settings/developers) | `https://os.example.com/gatekeeper/github/oauth` | Create an **OAuth App**, *not* a GitHub App — GitHub Apps ignore OAuth scopes and break email-based sign-in. |
 | **Google** | [Cloud Console → Credentials](https://console.cloud.google.com/apis/credentials) | `https://os.example.com/gatekeeper/google/oauth` | Enable the APIs you want (Drive, Docs, Sheets, Gmail, Calendar). Configure the OAuth consent screen; add test users while unverified. Client type: **Web application**. |
-| **Slack** | [api.slack.com/apps](https://api.slack.com/apps) | `https://os.example.com/gatekeeper/slack/oauth` | Create an app from scratch. Enable **Token Rotation** (OAuth & Permissions). Read-only user-token scopes; the Gatekeeper never writes. |
+| **Slack** | [api.slack.com/apps](https://api.slack.com/apps) | `https://os.example.com/gatekeeper/slack/oauth` | Create an app from scratch. **Do NOT enable Token Rotation** — it can't be undone and breaks two-way (bot tokens aren't refreshed). For two-way (mentions/DMs/slash/replies), add bot scopes + Event Subscriptions (Request URL `…/gatekeeper/slack/events`) and set `SLACK_SIGNING_SECRET` (see below). Read-only user-token installs need only `CLIENT_ID`/`CLIENT_SECRET`. |
 | **Linear** | [Settings → API → OAuth applications](https://linear.app/settings/api) | `https://os.example.com/gatekeeper/linear/oauth` | Create an OAuth application; requested scopes are `read` and `write`. |
 
 Copy each app's **Client ID** and **Client Secret** for the next step.
@@ -89,6 +89,8 @@ wrangler secret put CLIENT_ID     --name op-titan-google
 wrangler secret put CLIENT_SECRET --name op-titan-google
 wrangler secret put CLIENT_ID     --name op-titan-slack
 wrangler secret put CLIENT_SECRET --name op-titan-slack
+# Slack two-way only (inbound events + slash commands); omit for a read-only install:
+wrangler secret put SLACK_SIGNING_SECRET --name op-titan-slack
 wrangler secret put CLIENT_ID     --name op-titan-linear
 wrangler secret put CLIENT_SECRET --name op-titan-linear
 ```
