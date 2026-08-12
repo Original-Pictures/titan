@@ -42,14 +42,17 @@ const EXA_ICON = {
   url:
     "data:image/svg+xml," +
     encodeURIComponent(
-      "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256'><rect width='256' height='256' rx='48' fill='%23000'/><path d='M55 64h146v30H89v19h91v29H89v20h112v30H55z' fill='%23fff'/></svg>",
+      "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256'><rect width='256' height='256' rx='48' fill='#23000'/><path d='M55 64h146v30H89v19h91v29H89v20h112v30H55z' fill='#ffffff'/></svg>"
     ),
 };
 
 type ObservationQueue = Pick<ApprovalQueue, "authorizeObservation"> &
   Partial<{ [Symbol.dispose](): void }>;
 
-type HttpFetch = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
+type HttpFetch = (
+  input: RequestInfo | URL,
+  init?: RequestInit
+) => Promise<Response>;
 
 type ExaApiResult = {
   title?: unknown;
@@ -83,7 +86,11 @@ export function describeExaAccount(): AccountDescription {
   };
 }
 
-function nonEmptyString(value: unknown, name: string, maxLength: number): string {
+function nonEmptyString(
+  value: unknown,
+  name: string,
+  maxLength: number
+): string {
   if (typeof value !== "string" || !value.trim()) {
     throw new TypeError(`${name} must be a non-empty string.`);
   }
@@ -93,9 +100,10 @@ function nonEmptyString(value: unknown, name: string, maxLength: number): string
   return value;
 }
 
-export function normalizeSearchRequest(request: ExaSearchRequest): Required<
-  Pick<ExaSearchRequest, "query" | "type" | "numResults">
-> & Omit<ExaSearchRequest, "query" | "type" | "numResults"> {
+export function normalizeSearchRequest(
+  request: ExaSearchRequest
+): Required<Pick<ExaSearchRequest, "query" | "type" | "numResults">> &
+  Omit<ExaSearchRequest, "query" | "type" | "numResults"> {
   if (!request || typeof request !== "object" || Array.isArray(request)) {
     throw new TypeError("Exa search request must be an object.");
   }
@@ -107,17 +115,28 @@ export function normalizeSearchRequest(request: ExaSearchRequest): Required<
   }
 
   const numResults = request.numResults ?? 10;
-  if (!Number.isInteger(numResults) || numResults < 1 || numResults > MAX_RESULTS) {
-    throw new TypeError(`numResults must be an integer from 1 through ${MAX_RESULTS}.`);
+  if (
+    !Number.isInteger(numResults) ||
+    numResults < 1 ||
+    numResults > MAX_RESULTS
+  ) {
+    throw new TypeError(
+      `numResults must be an integer from 1 through ${MAX_RESULTS}.`
+    );
   }
 
   let includeDomains: string[] | undefined;
   if (request.includeDomains !== undefined) {
-    if (!Array.isArray(request.includeDomains) || request.includeDomains.length > MAX_DOMAINS) {
-      throw new TypeError(`includeDomains must contain at most ${MAX_DOMAINS} strings.`);
+    if (
+      !Array.isArray(request.includeDomains) ||
+      request.includeDomains.length > MAX_DOMAINS
+    ) {
+      throw new TypeError(
+        `includeDomains must contain at most ${MAX_DOMAINS} strings.`
+      );
     }
     includeDomains = request.includeDomains.map((domain, index) =>
-      nonEmptyString(domain, `includeDomains[${index}]`, MAX_DOMAIN_LENGTH),
+      nonEmptyString(domain, `includeDomains[${index}]`, MAX_DOMAIN_LENGTH)
     );
   }
 
@@ -126,26 +145,39 @@ export function normalizeSearchRequest(request: ExaSearchRequest): Required<
     startPublishedDate = nonEmptyString(
       request.startPublishedDate,
       "startPublishedDate",
-      100,
+      100
     );
-    if (!/^\d{4}-\d{2}-\d{2}(?:T.*)?$/.test(startPublishedDate) ||
-        !Number.isFinite(Date.parse(startPublishedDate))) {
+    if (
+      !/^\d{4}-\d{2}-\d{2}(?:T.*)?$/.test(startPublishedDate) ||
+      !Number.isFinite(Date.parse(startPublishedDate))
+    ) {
       throw new TypeError("startPublishedDate must be a valid ISO 8601 date.");
     }
   }
 
   let contents: ExaSearchRequest["contents"];
   if (request.contents !== undefined) {
-    if (!request.contents || typeof request.contents !== "object" || Array.isArray(request.contents)) {
+    if (
+      !request.contents ||
+      typeof request.contents !== "object" ||
+      Array.isArray(request.contents)
+    ) {
       throw new TypeError("contents must be an object.");
     }
-    if (request.contents.highlights !== undefined &&
-        typeof request.contents.highlights !== "boolean") {
+    if (
+      request.contents.highlights !== undefined &&
+      typeof request.contents.highlights !== "boolean"
+    ) {
       throw new TypeError("contents.highlights must be a boolean.");
     }
-    if (request.contents.maxAgeHours !== undefined &&
-        (!Number.isInteger(request.contents.maxAgeHours) || request.contents.maxAgeHours < -1)) {
-      throw new TypeError("contents.maxAgeHours must be an integer greater than or equal to -1.");
+    if (
+      request.contents.maxAgeHours !== undefined &&
+      (!Number.isInteger(request.contents.maxAgeHours) ||
+        request.contents.maxAgeHours < -1)
+    ) {
+      throw new TypeError(
+        "contents.maxAgeHours must be an integer greater than or equal to -1."
+      );
     }
     contents = {
       ...(request.contents.highlights !== undefined
@@ -178,13 +210,17 @@ function optionalHttpUrl(value: unknown): string | undefined {
   if (!url) return undefined;
   try {
     const parsed = new URL(url);
-    return parsed.protocol === "https:" || parsed.protocol === "http:" ? url : undefined;
+    return parsed.protocol === "https:" || parsed.protocol === "http:"
+      ? url
+      : undefined;
   } catch {
     return undefined;
   }
 }
 
-export function normalizeSearchResponse(value: ExaApiResponse): ExaSearchResponse {
+export function normalizeSearchResponse(
+  value: ExaApiResponse
+): ExaSearchResponse {
   if (!value || !Array.isArray(value.results)) {
     throw new Error("Exa returned an invalid search response.");
   }
@@ -199,7 +235,9 @@ export function normalizeSearchResponse(value: ExaApiResponse): ExaSearchRespons
     const author = optionalString(raw.author, MAX_AUTHOR_LENGTH);
     const highlights = Array.isArray(raw.highlights)
       ? raw.highlights
-          .filter((item): item is string => typeof item === "string" && Boolean(item))
+          .filter(
+            (item): item is string => typeof item === "string" && Boolean(item)
+          )
           .slice(0, MAX_HIGHLIGHTS_PER_RESULT)
           .map((item) => item.slice(0, MAX_HIGHLIGHT_LENGTH))
       : undefined;
@@ -215,7 +253,10 @@ export function normalizeSearchResponse(value: ExaApiResponse): ExaSearchRespons
 }
 
 function searchError(status: number): Error {
-  if (status === 401) return new Error("Exa API authentication failed; ask an operator to rotate EXA_API_KEY.");
+  if (status === 401)
+    return new Error(
+      "Exa API authentication failed; ask an operator to rotate EXA_API_KEY."
+    );
   if (status === 429) return new Error("Exa rate limit exceeded; retry later.");
   if (status === 400 || status === 422) {
     return new Error(`Exa rejected the search parameters (HTTP ${status}).`);
@@ -224,12 +265,19 @@ function searchError(status: number): Error {
 }
 
 @validateRpc()
-export class ExaSearchSessionImpl extends RpcTarget implements ExaSearchSession {
+export class ExaSearchSessionImpl
+  extends RpcTarget
+  implements ExaSearchSession
+{
   readonly #approvalQueue: ObservationQueue;
   readonly #apiKey: string;
   readonly #fetch: HttpFetch;
 
-  constructor(approvalQueue: ObservationQueue, apiKey: string, fetcher: HttpFetch = fetch) {
+  constructor(
+    approvalQueue: ObservationQueue,
+    apiKey: string,
+    fetcher: HttpFetch = fetch.bind(globalThis)
+  ) {
     super();
     this.#approvalQueue = approvalQueue;
     this.#apiKey = apiKey;
@@ -240,7 +288,10 @@ export class ExaSearchSessionImpl extends RpcTarget implements ExaSearchSession 
     const normalized = normalizeSearchRequest(request);
     await this.#approvalQueue.authorizeObservation({
       title: "Search the web with Exa",
-      description: `Send a web search to Exa for “${normalized.query.slice(0, 160)}”.`,
+      description: `Send a web search to Exa for “${normalized.query.slice(
+        0,
+        160
+      )}”.`,
     });
 
     const response = await this.#fetch(EXA_SEARCH_URL, {
@@ -256,7 +307,7 @@ export class ExaSearchSessionImpl extends RpcTarget implements ExaSearchSession 
 
     let body: ExaApiResponse;
     try {
-      body = await response.json() as ExaApiResponse;
+      body = (await response.json()) as ExaApiResponse;
     } catch {
       throw new Error("Exa returned a non-JSON search response.");
     }
@@ -291,14 +342,21 @@ export class ExaGatekeeper
     return [];
   }
 
-  async startSession(approvalQueue: RpcStub<ApprovalQueue>): Promise<ExaSearchSession> {
+  async startSession(
+    approvalQueue: RpcStub<ApprovalQueue>
+  ): Promise<ExaSearchSession> {
     if (!this.env.EXA_API_KEY) {
-      throw new Error("Exa Web Search is not configured; an operator must install EXA_API_KEY.");
+      throw new Error(
+        "Exa Web Search is not configured; an operator must install EXA_API_KEY."
+      );
     }
     return new ExaSearchSessionImpl(approvalQueue.dup(), this.env.EXA_API_KEY);
   }
 
-  async addObserver(_id: string, _user: Fetcher<GatekeeperUserVerifier>): Promise<void> {}
+  async addObserver(
+    _id: string,
+    _user: Fetcher<GatekeeperUserVerifier>
+  ): Promise<void> {}
   async removeObserver(_id: string): Promise<void> {}
 
   applyAction(_action: number): Promise<void> {
@@ -315,12 +373,17 @@ export class ExaGatekeeper
 }
 
 @validateRpc()
-export class ExaAccount extends WorkerEntrypoint<Cloudflare.Env> implements GatekeeperUser {
+export class ExaAccount
+  extends WorkerEntrypoint<Cloudflare.Env>
+  implements GatekeeperUser
+{
   async describe(): Promise<AccountDescription> {
     return describeExaAccount();
   }
 
-  async getSingletonGatekeeperClass(): Promise<DurableObjectClass<Gatekeeper<ExaSearchSession>>> {
+  async getSingletonGatekeeperClass(): Promise<
+    DurableObjectClass<Gatekeeper<ExaSearchSession>>
+  > {
     return this.ctx.exports.ExaGatekeeper({});
   }
 
@@ -332,11 +395,15 @@ export class ExaAccount extends WorkerEntrypoint<Cloudflare.Env> implements Gate
     throw new Error("Exa Web Search has no URL-addressed resources.");
   }
 
-  startResourceConfigurator(_resourceUrlPattern: string): Promise<ResourceConfiguratorFrame> {
+  startResourceConfigurator(
+    _resourceUrlPattern: string
+  ): Promise<ResourceConfiguratorFrame> {
     throw new Error("Exa Web Search has no URL-addressed resources.");
   }
 
-  async ensureResources(_resourceUrlPatterns: string[]): Promise<{ url?: string }> {
+  async ensureResources(
+    _resourceUrlPatterns: string[]
+  ): Promise<{ url?: string }> {
     return {};
   }
 
@@ -377,12 +444,16 @@ export class GatekeeperVendor extends WorkerEntrypoint<Cloudflare.Env> {
 
   connectAccount(
     _callback: Fetcher<GatekeeperConnectCallback>,
-    _options?: GatekeeperConnectOptions,
+    _options?: GatekeeperConnectOptions
   ): Promise<{ url: string }> {
-    throw new Error("Exa Web Search is auto-provisioned and has no connect flow.");
+    throw new Error(
+      "Exa Web Search is auto-provisioned and has no connect flow."
+    );
   }
 
-  async getSupportedResources(_options?: { userId?: string }): Promise<SupportedResource[]> {
+  async getSupportedResources(_options?: {
+    userId?: string;
+  }): Promise<SupportedResource[]> {
     return [];
   }
 
