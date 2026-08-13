@@ -137,6 +137,20 @@ its client credentials are not configured.
    *"summarize this Google Doc."* Approve or reject the queued actions from the Gatekeeper's
    approval queue.
 
+### GitHub CI remediation (polling)
+
+The pinned GitHub Gatekeeper also exposes the Phase 1 primitives for a Scheduled Task or Gadget to
+poll CI failures: list workflow runs/jobs, read bounded job logs, read bounded UTF-8 files at the
+failed commit SHA, create an atomic fix branch/commit, and open a draft pull request. The commit
+action rejects stale base SHAs, limits each commit to 20 paths and 512 KiB of content, and cannot
+modify `.github/workflows`.
+
+Writes remain separate approval kinds. An unattended workflow requires the user to explicitly
+enable `github.commitFiles`, `github.createPullRequest`, and (when notifying Slack)
+`slack.postMessage`; otherwise the corresponding agent turn pauses for manual approval. Phase 1
+uses the Scheduler to poll and should deduplicate by workflow run ID plus attempt. It does not
+receive GitHub webhooks.
+
 ## Optional sign-in
 
 GitHub and Google can also back the login page ("Continue with GitHub/Google"). That is a separate
