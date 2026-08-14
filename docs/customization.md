@@ -32,6 +32,7 @@ The custom logo appears in the app chrome, sign-in screens, and browser tab on e
 | `aiGateway` | Deployment-funded model catalog | Disabled, Workers AI direct, or provider traffic through AI Gateway |
 | `context` | Context sharing boundary and snapshot KV | A stable domain label; automatic or existing KV |
 | `customGatekeeper` | Example integration identity and guidance | Organization-specific display text |
+| [`docs/brand-guidelines.md`](brand-guidelines.md) | Default visual and editorial policy | Source-controlled prompt guidance for every agent |
 | `errorReporting` | Private explicit-issue destination | Console Reporter enabled state, environment, and release metadata |
 | `resources` | Blueprint/avatar KV and blueprint-content R2 | `null` to provision or explicit IDs/names to reuse |
 | `observability` | Worker telemetry | Structured logs, invocation logs, traces, and sampling; see the [observability guide](observability.md) |

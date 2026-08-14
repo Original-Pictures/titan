@@ -1,11 +1,15 @@
 import { existsSync } from "node:fs";
 import { readFile, rm, writeFile } from "node:fs/promises";
+import { readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname, join, relative, resolve } from "node:path";
 import { parse, printParseErrorCode } from "jsonc-parser";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+// This is source-controlled deployment policy, rather than mutable runtime-admin state. It is
+// provided to regular and spawned agents so existing deployments receive the same baseline.
+const brandGuidelines = readFileSync(join(root, "docs/brand-guidelines.md"), "utf8");
 // One deployment per checkout; use separate worktrees for concurrent deploys.
 const generatedName = "wrangler.prod.jsonc";
 const generatedPaths = {
@@ -312,6 +316,7 @@ export function generateConfigs(config, bases) {
     ADMINS: config.access.admins,
     CF_ACCESS_ISS: config.access.issuer.replace(/\/$/, ""),
     CF_ACCESS_AUD: config.access.audience,
+    ORIGINAL_PICTURES_BRAND_GUIDELINES: brandGuidelines,
   };
   if (config.aiGateway.enabled) {
     Object.assign(workshop.vars, {

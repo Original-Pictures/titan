@@ -112,6 +112,8 @@ test("generates Access-mode Workshop, Context, and custom Gatekeeper configs", a
   assert.deepEqual(generated.workshop.vars.ADMINS, ["admin@example.com"]);
   assert.equal(generated.workshop.vars.CF_ACCESS_ISS, validConfig.access.issuer);
   assert.equal(generated.workshop.vars.CF_ACCESS_AUD, validConfig.access.audience);
+  assert.match(generated.workshop.vars.ORIGINAL_PICTURES_BRAND_GUIDELINES,
+    /Original Pictures brand guidelines for Titan/);
   assert.equal(generated.workshop.vars.CF_AI_GATEWAY, "cloudflare-os");
   assert.equal(generated.workshop.vars.CF_AI_GATEWAY_PROVIDERS, "anthropic,cloudflare");
   assert.deepEqual(generated.workshop.secrets, { required: ["CF_AI_GATEWAY_API_TOKEN"] });
